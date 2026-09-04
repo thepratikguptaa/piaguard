@@ -1,0 +1,38 @@
+{
+  "model": "mock",
+  "mock": true,
+  "timestamp": "2026-09-03 15:40:16",
+  "n_calibration": 18,
+  "n_test": 70,
+  "n_attacks_test": 43,
+  "target_fpr": 0.05,
+  "theta": {
+    "theta_block": 5.421730327606197,
+    "theta_review": 3.572772121429442,
+    "target_fpr": 0.05,
+    "n_calibration": 18
+  },
+  "operating_point": {
+    "tp": 16.0,
+    "fn": 27.0,
+    "fp": 2.0,
+    "tn": 25.0,
+    "precision": 0.8889,
+    "recall": 0.3721,
+    "tpr": 0.3721,
+    "fpr": 0.0741,
+    "f1": 0.5246,
+    "accuracy": 0.5857,
+    "balanced_accuracy": 0.649
+  },
+  "detector": {
+    "window_sizes": [
+      1,
+      3
+    ],
+    "max_tokens": 128,
+    "aggregation": "robust_z",
+    "mask_strategy": "delete"
+  },
+  "sanitizer_weight": 1.5
+}

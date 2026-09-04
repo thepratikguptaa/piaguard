@@ -1,0 +1,13 @@
+# Core (needed for a real run)
+torch>=2.0
+transformers>=4.40
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+
+# Optional
+scikit-learn>=1.3    # only if you swap in sklearn metrics instead of piaguard.metrics
+tqdm>=4.65
+
+# Note: piaguard.metrics implements AUROC/ROC/PR itself with numpy, so the
+# smoke test and all offline layers run with numpy + pandas + matplotlib alone.
