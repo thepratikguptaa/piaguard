@@ -38,7 +38,7 @@ def stub_llm(prompt: str) -> str:
 
     Deliberately naive so the demo can show what Layer 4 is for: if an injection
     reaches it, it complies and leaks the canary. Swap this for a real
-    transformers `generate` call (see notebooks/PIAGuard_Colab.ipynb) when you
+    transformers `generate` call (see notebooks/PIAGuard_Eval.ipynb) when you
     want the end-to-end numbers.
     """
     low = prompt.lower()

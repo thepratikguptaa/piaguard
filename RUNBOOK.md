@@ -51,7 +51,7 @@ draft complete"; it does not accept a blank slide.
 
 ## Six-day plan
 
-**Day 1 (Wed 3rd) — get real numbers.** Open `notebooks/PIAGuard_Colab.ipynb` on a T4.
+**Day 1 (Wed 3rd) — get real numbers.** Open `notebooks/PIAGuard_Eval.ipynb` on a T4.
 Run the smoke test, then cell 3, and *look at the top spans*. If they land on the
 injected instruction, the method works and everything else is downstream. If they land on
 random tokens, you have a signal problem — the notebook's troubleshooting section covers

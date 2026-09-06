@@ -44,6 +44,12 @@ def parse_args():
     p.add_argument("--window-sizes", type=int, nargs="+", default=[1, 3])
     p.add_argument("--max-tokens", type=int, default=128)
     p.add_argument("--batch-size", type=int, default=16)
+    p.add_argument("--max-positions", type=int, default=None,
+                   help="cap on masked variants per prompt (default: DetectorConfig, 96). "
+                        "Dominates runtime - each variant is one forward pass.")
+    p.add_argument("--no-ablation", action="store_true",
+                   help="skip the window-size ablation, which re-scores the whole test "
+                        "set once per window config and is ~70%% of total runtime")
     p.add_argument("--outdir", default=None)
     p.add_argument("--seed", type=int, default=13)
     return p.parse_args()
@@ -59,6 +65,8 @@ def main():
     cfg.detector.window_sizes = tuple(args.window_sizes)
     cfg.detector.max_tokens = args.max_tokens
     cfg.detector.batch_size = args.batch_size
+    if args.max_positions is not None:
+        cfg.detector.max_positions = args.max_positions
     cfg.gate.target_fpr = args.target_fpr
     cfg.seed = args.seed
 
@@ -154,8 +162,12 @@ def main():
                          "TPR": round(m["tpr"], 4), "FPR": round(m["fpr"], 4),
                          "F1": round(m["f1"], 4),
                          "AUROC": round(M.auroc(y_true, scores), 4)})
-    # window-size ablation on the detector alone
-    for ws in [(1,), (3,), (1, 3)]:
+    # window-size ablation on the detector alone - re-scores every test prompt once
+    # per config, so it costs about as much as steps 1-3 put together
+    window_configs = [] if args.no_ablation else [(1,), (3,), (1, 3)]
+    if args.no_ablation:
+        print("      window-size ablation skipped (--no-ablation)")
+    for ws in window_configs:
         pipe.detector.cfg.window_sizes = ws
         sc = [pipe.detector.score(pipe.sanitizer.run(t).text).score for t in texts]
         m = M.tpr_at_fpr(y_true, sc, args.target_fpr)
@@ -210,7 +222,9 @@ def main():
         "detector": {"window_sizes": list(cfg.detector.window_sizes),
                      "max_tokens": cfg.detector.max_tokens,
                      "aggregation": cfg.detector.aggregation,
-                     "mask_strategy": cfg.detector.mask_strategy},
+                     "mask_strategy": cfg.detector.mask_strategy,
+                     "max_positions": cfg.detector.max_positions},
+        "window_ablation": not args.no_ablation,
         "sanitizer_weight": cfg.gate.sanitizer_weight,
     }
     with open(os.path.join(outdir, f"{prefix}run_metadata.json"), "w") as f:

@@ -56,7 +56,7 @@ python scripts/evaluate.py --model gpt2 --target-fpr 0.01
 
 No GPU or no model weights? Everything still runs — `load_lm` falls back to
 `MockCausalLM` and prefixes every output file with `SMOKE_`. Those numbers verify the
-plumbing and are **not** results. For real numbers use `notebooks/PIAGuard_Colab.ipynb`
+plumbing and are **not** results. For real numbers use `notebooks/PIAGuard_Eval.ipynb`
 on a free T4.
 
 ## Library use
@@ -90,7 +90,7 @@ print(res.verdict, res.gate.fused_score, res.detect.top_spans[0].text)
 | `scripts/evaluate.py` | the harness that writes `results/table*.csv` and `fig*.png` |
 | `scripts/demo.py` | live per-layer trace for the panel |
 | `scripts/smoke_test.py` | 30 offline checks |
-| `notebooks/PIAGuard_Colab.ipynb` | real GPU run, start here |
+| `notebooks/PIAGuard_Eval.ipynb` | real GPU run, start here |
 
 ## Three design decisions worth defending
 
