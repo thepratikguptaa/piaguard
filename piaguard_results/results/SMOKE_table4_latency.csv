@@ -1,0 +1,5 @@
+Stage,mean_ms,median_ms,p95_ms,max_ms
+l1_sanitize,0.12,0.1,0.19,0.25
+l2_detect,0.9,0.8,1.63,2.38
+l3_gate,0.01,0.01,0.01,0.01
+total,1.02,0.91,1.83,2.58
