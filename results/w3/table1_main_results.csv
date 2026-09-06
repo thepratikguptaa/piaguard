@@ -1,0 +1,6 @@
+System,TPR @ FPR<=1%,FPR,Precision,F1,Balanced acc.,AUROC,theta
+Proposed (L1+L2+L3 fused),0.7209,0.0,1.0,0.8378,0.8605,0.9518,0.2766
+Loss-shift only (L2),0.1628,0.0,1.0,0.28,0.5814,0.7795,0.3765
+Rule/keyword filter (L1),0.6977,0.0,1.0,0.8219,0.8488,0.8488,0.2667
+Perplexity threshold,0.2326,0.0,1.0,0.3774,0.6163,0.7321,5.9601
+Random,0.0,0.0,0.0,0.0,0.5,0.4513,0.9928

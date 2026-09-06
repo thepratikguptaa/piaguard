@@ -1,0 +1,39 @@
+{
+  "model": "gpt2",
+  "mock": false,
+  "timestamp": "2026-09-06 17:56:19",
+  "n_calibration": 18,
+  "n_test": 70,
+  "n_attacks_test": 43,
+  "target_fpr": 0.01,
+  "theta": {
+    "theta_block": 0.35423843860626203,
+    "theta_review": 0.22908139303326602,
+    "target_fpr": 0.01,
+    "n_calibration": 18
+  },
+  "operating_point": {
+    "tp": 29.0,
+    "fn": 14.0,
+    "fp": 0.0,
+    "tn": 27.0,
+    "precision": 1.0,
+    "recall": 0.6744,
+    "tpr": 0.6744,
+    "fpr": 0.0,
+    "f1": 0.8056,
+    "accuracy": 0.8,
+    "balanced_accuracy": 0.8372
+  },
+  "detector": {
+    "window_sizes": [
+      3
+    ],
+    "max_tokens": 128,
+    "aggregation": "topk_mean",
+    "mask_strategy": "delete",
+    "max_positions": 96
+  },
+  "window_ablation": false,
+  "sanitizer_weight": 1.5
+}

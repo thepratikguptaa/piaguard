@@ -59,6 +59,10 @@ def parse_args():
                         "set once per window config and is ~70%% of total runtime")
     p.add_argument("--outdir", default=None)
     p.add_argument("--seed", type=int, default=13)
+    p.add_argument("--allow-mock", action="store_true",
+                   help="proceed even if the real model could not be loaded. Without "
+                        "this the run aborts rather than quietly producing SMOKE_ output "
+                        "that looks like results.")
     return p.parse_args()
 
 
@@ -91,6 +95,22 @@ def main():
     lm = load_lm(cfg.detector)
     is_mock = isinstance(lm, MockCausalLM)
     prefix = "SMOKE_" if is_mock else ""
+    if is_mock and not args.allow_mock:
+        # A warning is not enough here: the run still prints five plausible-looking
+        # tables, and mock numbers have been mistaken for results. Fail instead.
+        sys.exit(
+            "\n" + "=" * 74 +
+            f"\nABORTED - '{args.model}' could not be loaded, so scoring would fall back\n"
+            "to MockCausalLM, whose 'surprisal' is a hash function. The tables it\n"
+            "produces are a plumbing check and are NOT results.\n\n"
+            "Most likely cause: this interpreter has no torch/transformers installed.\n"
+            f"  interpreter : {sys.executable}\n"
+            "  check with  : \"%s\" -c \"import torch, transformers\"\n"
+            "If that fails, either install into THIS interpreter:\n"
+            "      \"%s\" -m pip install torch transformers\n"
+            "  or run the script with the interpreter that already has them.\n\n"
+            "To run the plumbing check deliberately, pass --allow-mock.\n"
+            % (sys.executable, sys.executable) + "=" * 74)
     if is_mock:
         print("\n*** MOCK MODEL - outputs are a plumbing check, NOT results ***\n")
     else:
