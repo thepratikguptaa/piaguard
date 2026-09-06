@@ -1,29 +1,29 @@
 {
   "model": "gpt2",
   "mock": false,
-  "timestamp": "2026-09-06 17:16:14",
+  "timestamp": "2026-09-06 16:50:47",
   "n_calibration": 18,
   "n_test": 70,
   "n_attacks_test": 43,
   "target_fpr": 0.01,
   "theta": {
-    "theta_block": 0.48712330937385556,
-    "theta_review": 0.4317961499094963,
+    "theta_block": 0.8386090087890622,
+    "theta_review": 0.6093363285064697,
     "target_fpr": 0.01,
     "n_calibration": 18
   },
   "operating_point": {
-    "tp": 30.0,
-    "fn": 13.0,
+    "tp": 17.0,
+    "fn": 26.0,
     "fp": 0.0,
     "tn": 27.0,
     "precision": 1.0,
-    "recall": 0.6977,
-    "tpr": 0.6977,
+    "recall": 0.3953,
+    "tpr": 0.3953,
     "fpr": 0.0,
-    "f1": 0.8219,
-    "accuracy": 0.8143,
-    "balanced_accuracy": 0.8488
+    "f1": 0.5667,
+    "accuracy": 0.6286,
+    "balanced_accuracy": 0.6977
   },
   "detector": {
     "window_sizes": [
@@ -31,10 +31,10 @@
       3
     ],
     "max_tokens": 128,
-    "aggregation": "topk_mean",
+    "aggregation": "max",
     "mask_strategy": "delete",
     "max_positions": 96
   },
-  "window_ablation": true,
+  "window_ablation": false,
   "sanitizer_weight": 1.5
 }

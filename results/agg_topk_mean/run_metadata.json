@@ -1,7 +1,7 @@
 {
   "model": "gpt2",
   "mock": false,
-  "timestamp": "2026-09-06 17:16:14",
+  "timestamp": "2026-09-06 16:57:42",
   "n_calibration": 18,
   "n_test": 70,
   "n_attacks_test": 43,
@@ -35,6 +35,6 @@
     "mask_strategy": "delete",
     "max_positions": 96
   },
-  "window_ablation": true,
+  "window_ablation": false,
   "sanitizer_weight": 1.5
 }

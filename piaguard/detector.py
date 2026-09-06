@@ -74,6 +74,12 @@ class LossShiftDetector:
     def _variants(self, ids: List[int]) -> Tuple[List[List[int]], List[Tuple[int, int]]]:
         seqs, spans = [], []
         n = len(ids)
+        # "replace" keeps the sequence length constant, so the mean NLL is not
+        # affected by the length change that deletion causes. It needs a filler
+        # that carries no meaning: repeating ids[0] would splice the prompt's own
+        # first token across the span and inject fresh signal.
+        mask_id = getattr(self.lm, "mask_token_id", ids[0]) \
+            if self.cfg.mask_strategy != "delete" else None
         for w in self.cfg.window_sizes:
             if w >= n:
                 continue
@@ -81,8 +87,8 @@ class LossShiftDetector:
             for i in range(0, n - w + 1, stride):
                 if self.cfg.mask_strategy == "delete":
                     seqs.append(ids[:i] + ids[i + w:])
-                else:  # replace span with the first token repeated (keeps length)
-                    seqs.append(ids[:i] + [ids[0]] * w + ids[i + w:])
+                else:  # replace the span with a neutral mask token (keeps length)
+                    seqs.append(ids[:i] + [mask_id] * w + ids[i + w:])
                 spans.append((i, i + w))
         # cost cap: keep an evenly spread subset
         if len(seqs) > self.cfg.max_positions:

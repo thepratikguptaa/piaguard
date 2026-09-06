@@ -19,6 +19,10 @@ class SanitizerConfig:
     # "redact" replaces matched spans with [REDACTED] before the text reaches the LLM.
     mode: str = "flag"
     max_len: int = 8000
+    # Divisor in SanitizeResult.risk. Lower => the same evidence yields a higher
+    # risk, so Layer 1 weighs more heavily in the fused score. Tunable knob for
+    # the TPR/FPR trade-off; 3.0 saturates at roughly three strong rule hits.
+    risk_divisor: float = 3.0
 
 
 @dataclass
@@ -26,7 +30,13 @@ class DetectorConfig:
     model_name: str = "gpt2"
     window_sizes: Tuple[int, ...] = (1, 3)   # single-token and 3-token span masking
     mask_strategy: str = "delete"            # "delete" | "replace"
-    aggregation: str = "robust_z"             # "robust_z" | "max" | "topk_mean"
+    # "topk_mean" | "max" | "robust_z". Measured on the seed set with GPT-2
+    # (results/agg_*), fused AUROC: topk_mean 0.928 > max 0.904 > robust_z 0.810.
+    # robust_z divides each prompt's max shift by that same prompt's spread (MAD),
+    # which normalises the signal away along with the noise - a clean prompt and an
+    # injected one both land near 1.6. Chosen on the seed set, so re-check it when
+    # a public benchmark is added.
+    aggregation: str = "topk_mean"
     topk: int = 3
     batch_size: int = 16
     max_tokens: int = 128       # truncate long prompts (cost control)

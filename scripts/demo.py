@@ -9,13 +9,14 @@ the fused score against theta, and what L4 caught in the response), then a
 two-row end-to-end table: attack success rate with the defence off vs on.
 """
 import argparse
+import json
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from piaguard import PipelineConfig, PIAGuardPipeline, load_lm
-from piaguard.gate import Verdict
+from piaguard.dataset import load_eval_set, calibration_split
 
 SYSTEM_PROMPT = (
     "You are the DivineLane support assistant. Answer only questions about orders, "
@@ -77,24 +78,74 @@ def trace(pipe: PIAGuardPipeline, label: str, prompt: str) -> None:
     print(f"  latency  : {res.timings_ms.get('total', 0):.1f} ms")
 
 
+def load_calibrated_theta(model_name: str) -> dict:
+    """Reuse the theta that scripts/evaluate.py derived for this model, if present.
+
+    Without this the demo silently runs on GateConfig's placeholder theta_block,
+    which is not the calibrated value - so the panel would watch the pipeline
+    make decisions at an operating point that matches none of the reported
+    numbers. Looks in results/ and results/<model>/.
+    """
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "results")
+    safe = model_name.replace("/", "_")
+    for path in (os.path.join(root, safe, "run_metadata.json"),
+                 os.path.join(root, "run_metadata.json")):
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                meta = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if meta.get("mock") or meta.get("model") != model_name:
+            continue
+        theta = meta.get("theta") or {}
+        if "theta_block" in theta:
+            return {"theta_block": float(theta["theta_block"]),
+                    "theta_review": float(theta.get("theta_review", theta["theta_block"])),
+                    "source": os.path.normpath(path)}
+    return {}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="gpt2")
     ap.add_argument("--prompt", default=None)
     ap.add_argument("--interactive", action="store_true")
     ap.add_argument("--theta", type=float, default=None, help="override theta_block")
+    ap.add_argument("--calibrate", action="store_true",
+                    help="derive theta now from the seed set's clean prompts "
+                         "instead of reusing the value evaluate.py stored")
     args = ap.parse_args()
 
     cfg = PipelineConfig()
     cfg.detector.model_name = args.model
-    if args.theta is not None:
-        cfg.gate.theta_block = args.theta
 
     lm = load_lm(cfg.detector)
     pipe = PIAGuardPipeline(lm, cfg, system_prompt=SYSTEM_PROMPT, llm_fn=stub_llm)
 
+    if args.theta is not None:
+        cfg.gate.theta_block = args.theta
+        theta_src = "--theta override"
+    elif args.calibrate:
+        cal, _ = calibration_split(load_eval_set(), frac=0.4, seed=cfg.seed)
+        print(f"calibrating theta on {len(cal)} clean prompts ...", flush=True)
+        scores = [pipe.analyse(e.text).gate.fused_score for e in cal]
+        pipe.gate.calibrate(scores, target_fpr=cfg.gate.target_fpr)
+        theta_src = f"calibrated now on {len(cal)} clean prompts"
+    else:
+        found = load_calibrated_theta(lm.name)
+        if found:
+            cfg.gate.theta_block = found["theta_block"]
+            cfg.gate.theta_review = found["theta_review"]
+            theta_src = found["source"]
+        else:
+            theta_src = ("UNCALIBRATED placeholder - run scripts/evaluate.py, "
+                         "or pass --calibrate")
+
     print("=" * 72)
     print(f"PIAGuard demo   scoring model: {lm.name}   theta_block={cfg.gate.theta_block:.2f}")
+    print(f"theta source: {theta_src}")
     print("=" * 72)
 
     if args.prompt:

@@ -1,0 +1,7 @@
+Attack family,n,Recall (detected)
+adversarial,5,0.2
+backdoor,4,0.0
+direct,15,0.4667
+indirect,8,0.375
+jailbreak,7,0.5714
+obfuscated,4,0.5

@@ -31,7 +31,7 @@ import pandas as pd
 from piaguard import (PipelineConfig, PIAGuardPipeline, load_lm, MockCausalLM,
                       load_eval_set, calibration_split)
 from piaguard.dataset import summarise
-from piaguard.baselines import KeywordFilter, PerplexityFilter, RandomBaseline
+from piaguard.baselines import PerplexityFilter, RandomBaseline
 from piaguard import metrics as M
 
 
@@ -44,6 +44,13 @@ def parse_args():
     p.add_argument("--window-sizes", type=int, nargs="+", default=[1, 3])
     p.add_argument("--max-tokens", type=int, default=128)
     p.add_argument("--batch-size", type=int, default=16)
+    p.add_argument("--aggregation", default=None,
+                   choices=["robust_z", "max", "topk_mean"],
+                   help="how per-span loss shifts collapse to one score "
+                        "(default: DetectorConfig, robust_z)")
+    p.add_argument("--mask-strategy", default=None, choices=["delete", "replace"],
+                   help="how a span is masked: cut it out, or overwrite it with a "
+                        "neutral mask token (default: DetectorConfig, delete)")
     p.add_argument("--max-positions", type=int, default=None,
                    help="cap on masked variants per prompt (default: DetectorConfig, 96). "
                         "Dominates runtime - each variant is one forward pass.")
@@ -67,6 +74,10 @@ def main():
     cfg.detector.batch_size = args.batch_size
     if args.max_positions is not None:
         cfg.detector.max_positions = args.max_positions
+    if args.aggregation is not None:
+        cfg.detector.aggregation = args.aggregation
+    if args.mask_strategy is not None:
+        cfg.detector.mask_strategy = args.mask_strategy
     cfg.gate.target_fpr = args.target_fpr
     cfg.seed = args.seed
 
@@ -168,8 +179,14 @@ def main():
     if args.no_ablation:
         print("      window-size ablation skipped (--no-ablation)")
     for ws in window_configs:
-        pipe.detector.cfg.window_sizes = ws
-        sc = [pipe.detector.score(pipe.sanitizer.run(t).text).score for t in texts]
+        if ws == tuple(args.window_sizes):
+            # Step 2 already scored every test prompt with exactly this config.
+            # Re-running it costs ~7,000 forward passes for identical numbers.
+            sc = det_only
+            print(f"      window sizes {ws}: reusing step-2 scores")
+        else:
+            pipe.detector.cfg.window_sizes = ws
+            sc = [pipe.detector.score(pipe.sanitizer.run(t).text).score for t in texts]
         m = M.tpr_at_fpr(y_true, sc, args.target_fpr)
         abl_rows.append({"Configuration": f"L2 window sizes {ws}",
                          "TPR": round(m["tpr"], 4), "FPR": round(m["fpr"], 4),

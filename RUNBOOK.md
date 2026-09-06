@@ -81,6 +81,13 @@ demo ready as a fallback: `python scripts/demo.py --model gpt2` produces the per
 trace, and a live block of an injection lands harder than any bar chart. Have a recorded
 version too — never rely on Colab connecting in the room.
 
+> **Run `scripts/evaluate.py` before the demo.** The demo reads θ back from
+> `results/run_metadata.json`, so it decides at the same operating point you put on
+> slide 13. Without it the header prints `UNCALIBRATED` and the pipeline runs on a
+> placeholder θ that matches none of your reported numbers — attacks land in REVIEW
+> instead of BLOCK, which undersells the system live. `--calibrate` derives θ on the
+> spot if you need it standalone.
+
 ---
 
 ## Slide-ready pseudocode

@@ -24,7 +24,7 @@ GPT-2, Mistral and LLaMA without modification.
               ┌──────────────────────────────────────────────────────────┐
               │ L2  LossShiftDetector    behavioural, training-free      │
               │     mask each span, measure Δ mean-NLL,                  │
-              │     robust z-score over the prompt's own shifts          │
+              │     mean of the top-k span shifts (measured best)        │
               └───────────────────────────┬──────────────────────────────┘
                                           ▼
               ┌──────────────────────────────────────────────────────────┐
@@ -79,7 +79,7 @@ print(res.verdict, res.gate.fused_score, res.detect.top_spans[0].text)
 | Path | What it holds |
 |---|---|
 | `piaguard/sanitizer.py` | L1 — normalisation, obfuscation decoding, 18 pattern rules |
-| `piaguard/detector.py` | L2 — masked-span loss shift, robust-z aggregation |
+| `piaguard/detector.py` | L2 — masked-span loss shift, top-k mean aggregation |
 | `piaguard/gate.py` | L3 — score fusion, three-way verdict, θ calibration |
 | `piaguard/validator.py` | L4 — canary, n-gram leak, secrets, persona markers |
 | `piaguard/pipeline.py` | orchestration + per-layer timing |
@@ -92,7 +92,7 @@ print(res.verdict, res.gate.fused_score, res.detect.top_spans[0].text)
 | `scripts/smoke_test.py` | 30 offline checks |
 | `notebooks/PIAGuard_Eval.ipynb` | real GPU run, start here |
 
-## Three design decisions worth defending
+## Four design decisions worth defending
 
 **The rule layer does not decide anything.** Rule-based filters are the exact component
 the reviewed literature shows is bypassable, so using L1 as a gate inherits that
@@ -105,11 +105,18 @@ FPR. So it is a deployment SLA ("1% of legitimate traffic is blocked"), it can b
 re-derived for any model or traffic mix, and it is not fitted to the attacks it is
 evaluated against.
 
-**The score is self-normalising.** Raw max loss-shift scales with prompt length and topic,
-so one global threshold cannot transfer. Dividing by the spread (MAD) of that same
-prompt's shifts fixes this. This, plus multi-token window masking — a single-token mask
-leaves the rest of a phrase-length trigger intact — is what this extends beyond
-single-token UniGuardian-style detection.
+**Multi-token window masking.** A single-token mask leaves the rest of a phrase-length
+trigger intact, so the loss barely moves. Masking 1- and 3-token windows is what this
+extends beyond single-token UniGuardian-style detection.
+
+**The aggregation was chosen by measurement, not assumption.** An earlier version
+self-normalised each prompt's max shift by that prompt's own spread (MAD), on the
+reasoning that raw shift magnitude scales with length and topic. Measured, that was the
+single worst choice: it normalises the signal away along with the noise, leaving clean
+prompts and injections both near 1.6, and it was the sole source of every false positive.
+Fused AUROC by aggregation on the seed set with GPT-2 — `topk_mean` **0.928** > `max`
+0.904 > `robust_z` 0.810 — so `topk_mean` is the default. Reproduce with
+`--aggregation {topk_mean,max,robust_z}`; re-check it when a public benchmark is added.
 
 ## Limitations
 
@@ -129,3 +136,7 @@ State these rather than let the panel find them.
   untested and is the obvious next experiment.
 - **Text only.** No multimodal, multilingual, multi-turn or tool-calling injection —
   the same gaps identified in the PromptShield review.
+- **The aggregation was picked on the evaluation data.** `topk_mean` beat the
+  alternatives on the seed set's 70 test prompts, which is hyperparameter selection on the
+  test set. The *mechanism* behind the result is demonstrable arithmetically, but the exact
+  AUROC is not a held-out number. Re-run the sweep on a public benchmark before quoting it.

@@ -1,0 +1,4 @@
+Configuration,TPR,FPR,F1,AUROC
+L1 only (rules),0.6977,0.0,0.8219,0.8488
+L2 only (loss shift),0.0233,0.0,0.0455,0.6227
+"L1 + L2 (fused, w=1.5)",0.2326,0.0,0.3774,0.8096

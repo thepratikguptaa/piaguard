@@ -15,7 +15,7 @@ Gate fuses with the behavioural signal from Layer 2. The normalisation half is
 what actually matters: it removes the cheap evasions before Layer 2 tokenises.
 """
 from dataclasses import dataclass, field
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 import base64
 import binascii
 import codecs
@@ -74,7 +74,9 @@ class RuleHit:
     rule_id: str
     family: str
     weight: float
-    span: Tuple[int, int]
+    # Offsets into the normalised prompt, or None when the hit came from a
+    # decoded payload that has no location there (e.g. a whole-text rot13).
+    span: Optional[Tuple[int, int]]
     snippet: str
 
 
@@ -85,6 +87,7 @@ class SanitizeResult:
     hits: List[RuleHit] = field(default_factory=list)
     transforms: List[str] = field(default_factory=list)
     decoded_payloads: List[str] = field(default_factory=list)
+    risk_divisor: float = 3.0
 
     @property
     def risk(self) -> float:
@@ -93,7 +96,7 @@ class SanitizeResult:
             return 0.0
         total = sum(h.weight for h in self.hits)
         families = len({h.family for h in self.hits})
-        return min(1.0, (total + 0.5 * (families - 1)) / 3.0)
+        return min(1.0, (total + 0.5 * (families - 1)) / self.risk_divisor)
 
     @property
     def families(self) -> List[str]:
@@ -149,13 +152,20 @@ class Sanitizer:
         return out, applied
 
     # ---------- obfuscation ----------
-    def _decode_payloads(self, text: str) -> List[str]:
+    def _decode_payloads(self, text: str) -> List[Tuple[str, Optional[Tuple[int, int]]]]:
         """Decode base64/hex/rot13 blobs and keep any that look like instructions.
 
         The decoded text is never executed or forwarded - it is only inspected so
         an obfuscated payload raises the same flags as a plaintext one.
+
+        Returns (decoded_text, blob_span) pairs, where blob_span locates the
+        ENCODED blob inside `text`. Redaction needs that location: offsets found
+        inside the decoded string do not address the same characters, so using
+        them would redact unrelated text (and leave the payload itself intact).
+        rot13 rewrites the whole prompt and has no single blob, so its span is
+        None and it contributes evidence only.
         """
-        found: List[str] = []
+        found: List[Tuple[str, Optional[Tuple[int, int]]]] = []
         for m in _B64_RE.finditer(text):
             blob = m.group(0)
             try:
@@ -164,18 +174,18 @@ class Sanitizer:
             except (binascii.Error, UnicodeDecodeError, ValueError):
                 continue
             if _INJECT_HINT_RE.search(s):
-                found.append(s)
+                found.append((s, m.span()))
         for m in _HEX_RE.finditer(text):
             try:
                 s = bytes.fromhex(re.sub(r"\s", "", m.group(0))).decode("utf-8")
             except (ValueError, UnicodeDecodeError):
                 continue
             if _INJECT_HINT_RE.search(s):
-                found.append(s)
+                found.append((s, m.span()))
         try:
             rot = codecs.encode(text, "rot13")
             if _INJECT_HINT_RE.search(rot) and not _INJECT_HINT_RE.search(text):
-                found.append(rot)
+                found.append((rot, None))
         except Exception:
             pass
         return found
@@ -191,22 +201,39 @@ class Sanitizer:
                                     text[m.start():min(m.end(), m.start() + 80)]))
         return hits
 
+    @staticmethod
+    def _merge_spans(spans: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+        """Merge overlapping/adjacent spans so redaction cannot interleave them."""
+        merged: List[Tuple[int, int]] = []
+        for s, e in sorted(spans):
+            if merged and s <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+            else:
+                merged.append((s, e))
+        return merged
+
     def run(self, text: str) -> SanitizeResult:
         norm, applied = self._normalize(text)
         decoded = self._decode_payloads(norm) if self.cfg.decode_obfuscation else []
 
         hits = self._match(norm)
-        for payload in decoded:                       # flags from hidden payloads too
+        for payload, blob_span in decoded:            # flags from hidden payloads too
             for h in self._match(payload):
                 h.rule_id += "*"                      # '*' = matched after decoding
+                # h.span indexes the DECODED text, which is not a slice of norm.
+                # Re-anchor it to the encoded blob so redaction removes the
+                # payload rather than whatever happens to sit at those offsets.
+                h.span = blob_span
                 hits.append(h)
 
         out = norm
-        if self.cfg.mode == "redact" and hits:
-            spans = sorted({h.span for h in hits if h.span[1] <= len(norm)}, reverse=True)
-            for s, e in spans:
-                out = out[:s] + "[REDACTED]" + out[e:]
-            applied.append("redact")
+        if self.cfg.mode == "redact":
+            spans = [h.span for h in hits
+                     if h.span is not None and 0 <= h.span[0] < h.span[1] <= len(norm)]
+            if spans:
+                for s, e in reversed(self._merge_spans(spans)):
+                    out = out[:s] + "[REDACTED]" + out[e:]
+                applied.append("redact")
 
         # de-duplicate rule ids, keep first occurrence
         seen, uniq = set(), []
@@ -216,4 +243,6 @@ class Sanitizer:
                 uniq.append(h)
 
         return SanitizeResult(text=out, original=text, hits=uniq,
-                              transforms=applied, decoded_payloads=decoded)
+                              transforms=applied,
+                              decoded_payloads=[p for p, _ in decoded],
+                              risk_divisor=self.cfg.risk_divisor)

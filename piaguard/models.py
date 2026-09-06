@@ -19,6 +19,15 @@ import numpy as np
 class BaseLM:
     name = "base"
 
+    @property
+    def mask_token_id(self) -> int:
+        """Neutral filler used by the detector's "replace" masking strategy.
+
+        Must be a token that carries no content of its own, otherwise the
+        replacement injects new signal instead of removing the old one.
+        """
+        raise NotImplementedError
+
     def tokenize(self, text: str) -> List[int]:
         raise NotImplementedError
 
@@ -53,6 +62,13 @@ class HFCausalLM(BaseLM):
         self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=dtype)
         self.model.to(device).eval()
         self.pad_id = self.tok.pad_token_id
+
+    @property
+    def mask_token_id(self) -> int:
+        for tid in (self.tok.unk_token_id, self.tok.pad_token_id, self.tok.eos_token_id):
+            if tid is not None:
+                return int(tid)
+        return 0
 
     def tokenize(self, text: str) -> List[int]:
         return self.tok.encode(text, add_special_tokens=False)
@@ -101,10 +117,16 @@ class MockCausalLM(BaseLM):
         "unrestricted", "developer", "sudo", "exfiltrate", "credentials",
     }
 
+    MASK_TOKEN = "<mask>"
+
     def __init__(self, seed: int = 13):
         self.seed = seed
         self._vocab: dict = {}
         self._inv: dict = {}
+
+    @property
+    def mask_token_id(self) -> int:
+        return self._id(self.MASK_TOKEN)
 
     def _id(self, token: str) -> int:
         if token not in self._vocab:
